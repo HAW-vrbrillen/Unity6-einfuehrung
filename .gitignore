@@ -72,3 +72,10 @@ TempAssembly.dll
 *.pptx
 # Visual Studio 2022+ solution format
 *.slnx
+
+# Unity-Temp-Ordner
+/.utmp/
+
+# Meta Immersive Debugger: enthält die lokale IP-Adresse, wird pro Rechner erzeugt
+/Assets/Resources/DevAgentSettings.asset
+/Assets/Resources/DevAgentSettings.asset.meta
