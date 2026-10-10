@@ -1,0 +1,19 @@
+{
+  "name": "Unityy – Vibe Coding",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "GitHub.copilot-chat"
+      ],
+      "settings": {
+        "chat.useAgentsMdFile": true,
+        "files.exclude": {
+          "**/*.meta": true
+        },
+        "workbench.startupEditor": "readme"
+      }
+    }
+  },
+  "postCreateCommand": "npm install -g @openai/codex"
+}
