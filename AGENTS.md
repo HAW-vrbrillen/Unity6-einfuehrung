@@ -56,7 +56,7 @@ Mess-App für Mixed Reality auf der Meta Quest 3.
 ## Nicht verändern
 
 - `Assets/Editor/Einfuehrung/` – der „Aktualisieren“-Button, mit dem alle den neuen Stand holen
-- `AGENTS.md`, `.github/`, `.devcontainer/`
+- `AGENTS.md`, `.github/`
 
 ## Nach jeder Änderung
 
