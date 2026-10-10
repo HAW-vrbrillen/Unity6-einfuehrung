@@ -70,3 +70,5 @@ TempAssembly.dll
 
 # Presentation / non-project files
 *.pptx
+# Visual Studio 2022+ solution format
+*.slnx

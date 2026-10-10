@@ -1,0 +1,30 @@
+{
+  "name": "com.learnxr.core",
+  "version": "1.0.4",
+  "displayName": "LearnXR Core",
+  "description": "LearnXR Core utilities for features used throughout YouTube tutorials. This now includes samples.",
+  "unity": "2021.3",
+  "unityRelease": "0f1",
+  "documentationUrl": "https://www.learnxr.io",
+  "author": {
+    "name": "Dilmer Valecillos",
+    "email": "dilmer@learnxr.io",
+    "url": "https://www.learnxr.io"
+  },
+  "dependencies": {
+    "com.unity.ugui": "2.0.0"
+  },
+  "samples": [
+    {
+      "displayName": "Simple Shapes Samples",
+      "description": "Contains a variety of simple shapes used during YouTube videos.",
+      "path": "Samples~/Shapes"
+    },
+    {
+      "displayName": "Logger Sample",
+      "description": "Contains a sample of how to use the logger.",
+      "path": "Samples~/Logger"
+    }
+  ],
+  "_fingerprint": "7346a7397877564c070b02069eaeec5631cf9dc2"
+}
