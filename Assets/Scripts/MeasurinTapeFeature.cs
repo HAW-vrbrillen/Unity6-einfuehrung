@@ -40,7 +40,7 @@ public class MeasurinTapeFeature : Singleton<MeasurinTapeFeature>
                              || leftControllerTapeArea == rightControllerTapeArea;
         if (!misconfigured) return;
 
-        var rig = FindObjectOfType<OVRCameraRig>();
+        var rig = FindAnyObjectByType<OVRCameraRig>();
         if (rig == null)
         {
             Debug.LogError("[MeasurinTapeFeature] TapeArea-Referenzen sind fehlerhaft (leer oder beide " +

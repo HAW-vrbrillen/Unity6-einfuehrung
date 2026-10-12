@@ -11,7 +11,7 @@ namespace LearnXR.Core
             {
                 if (instance == null)
                 {
-                    var objs = FindObjectsOfType(typeof(T), includeInactive: true) as T[];
+                    var objs = FindObjectsByType(typeof(T), FindObjectsInactive.Include) as T[];
                     if (objs is { Length: > 0 })
                         instance = objs[0];
                     if (objs is { Length: > 1 })

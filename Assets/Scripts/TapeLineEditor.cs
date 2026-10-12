@@ -34,14 +34,14 @@ public class TapeLineEditor : MonoBehaviour
     {
         if (pointerTransform == null)
         {
-            var rig = FindObjectOfType<OVRCameraRig>();
+            var rig = FindAnyObjectByType<OVRCameraRig>();
             if (rig != null) pointerTransform = rig.rightControllerAnchor;
         }
     }
 
     private void Update()
     {
-        if (tape == null) tape = FindObjectOfType<MeasurinTapeFeature>();
+        if (tape == null) tape = FindAnyObjectByType<MeasurinTapeFeature>();
         if (tape == null || pointerTransform == null) return;
 
         // Läuft gerade eine Verschiebung? -> nur das behandeln.

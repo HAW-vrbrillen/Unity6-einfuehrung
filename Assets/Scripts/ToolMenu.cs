@@ -78,7 +78,7 @@ public class ToolMenu : MonoBehaviour
 
     private void ResolveAnchors()
     {
-        var rig = FindObjectOfType<OVRCameraRig>();
+        var rig = FindAnyObjectByType<OVRCameraRig>();
         if (menuAnchor == null)
             menuAnchor = rig != null ? rig.leftControllerAnchor : FindByName("LeftControllerAnchor");
         if (pointerTransform == null)
@@ -230,7 +230,7 @@ public class ToolMenu : MonoBehaviour
 
     private void ClearLines()
     {
-        var tape = FindObjectOfType<MeasurinTapeFeature>();
+        var tape = FindAnyObjectByType<MeasurinTapeFeature>();
         if (tape != null) tape.ClearAllLines();
     }
 
