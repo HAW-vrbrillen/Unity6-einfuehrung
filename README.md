@@ -1,4 +1,4 @@
-# Messprojekt – Unity & Meta Quest 3
+# MR Messwerkzeug – Unity & Meta Quest 3
 
 Mixed-Reality-Mess-App für die Meta Quest 3: Maßband, Wasserwaage und ein Werkzeug-Menü
 am Controller. Beispielprojekt für die Einführung „KI-gestützte Entwicklung von
