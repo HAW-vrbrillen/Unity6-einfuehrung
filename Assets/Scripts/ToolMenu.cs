@@ -59,6 +59,16 @@ public class ToolMenu : MonoBehaviour
 
     private readonly List<MenuButton> buttons = new();
     private readonly List<GameObject> spawnedLevelers = new();
+    private readonly List<Transform> selectedObjects = new();
+    private readonly Color[] selectionColors =
+    {
+        Color.red,
+        Color.green,
+        Color.blue,
+        Color.yellow,
+        Color.magenta
+    };
+    private int colorCycleIndex;
 
     private RectTransform menuRoot;
     private LineRenderer laser;
@@ -232,6 +242,100 @@ public class ToolMenu : MonoBehaviour
     {
         var tape = FindAnyObjectByType<MeasurinTapeFeature>();
         if (tape != null) tape.ClearAllLines();
+        selectedObjects.Clear();
+    }
+
+    private void SelectSingleObject()
+    {
+        selectedObjects.Clear();
+        var all = GetSelectableObjects();
+        if (all.Count > 0)
+            selectedObjects.Add(all[all.Count - 1]);
+    }
+
+    private void SelectMultipleObjects()
+    {
+        selectedObjects.Clear();
+        selectedObjects.AddRange(GetSelectableObjects());
+    }
+
+    private void ChangeSelectedObjectColor()
+    {
+        if (selectedObjects.Count == 0)
+        {
+            SelectMultipleObjects();
+            if (selectedObjects.Count == 0)
+            {
+                Debug.LogWarning("[ToolMenu] Keine Objekte zum Ändern der Farbe ausgewählt.");
+                return;
+            }
+        }
+
+        var color = selectionColors[colorCycleIndex % selectionColors.Length];
+        colorCycleIndex++;
+
+        foreach (var t in selectedObjects)
+            ApplyColorToObject(t, color);
+    }
+
+    private void AdjustSelectedObjectOrientation()
+    {
+        if (selectedObjects.Count == 0)
+        {
+            SelectMultipleObjects();
+            if (selectedObjects.Count == 0)
+            {
+                Debug.LogWarning("[ToolMenu] Keine Objekte zur Orientierung ausgewählt.");
+                return;
+            }
+        }
+
+        foreach (var t in selectedObjects)
+            if (t != null)
+                t.Rotate(0f, 15f, 0f, Space.World);
+    }
+
+    private List<Transform> GetSelectableObjects()
+    {
+        var objects = new List<Transform>();
+
+        foreach (var leveler in FindObjectsByType<LevelerFeature>(FindObjectsSortMode.None))
+        {
+            if (leveler != null && leveler.transform != null)
+                objects.Add(leveler.transform);
+        }
+
+        var tape = FindAnyObjectByType<MeasurinTapeFeature>();
+        if (tape != null)
+        {
+            foreach (var line in tape.Lines)
+            {
+                if (line != null && line.TapeLine != null)
+                    objects.Add(line.TapeLine.transform);
+            }
+        }
+
+        return objects;
+    }
+
+    private static void ApplyColorToObject(Transform root, Color color)
+    {
+        if (root == null) return;
+
+        foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+        {
+            var mats = renderer.materials;
+            for (int i = 0; i < mats.Length; i++)
+                mats[i].color = color;
+            renderer.materials = mats;
+        }
+
+        foreach (var lineRenderer in root.GetComponentsInChildren<LineRenderer>(true))
+            lineRenderer.material.color = color;
+
+        var text = root.GetComponentInChildren<TextMeshProUGUI>(true);
+        if (text != null)
+            text.color = color;
     }
 
     private void ResetAll()
@@ -239,6 +343,7 @@ public class ToolMenu : MonoBehaviour
         foreach (var l in spawnedLevelers)
             if (l != null) Destroy(l);
         spawnedLevelers.Clear();
+        selectedObjects.Clear();
         ClearLines();
     }
 
@@ -255,22 +360,44 @@ public class ToolMenu : MonoBehaviour
         canvas.renderMode = RenderMode.WorldSpace;
 
         menuRoot = canvasGo.GetComponent<RectTransform>();
-        menuRoot.sizeDelta = new Vector2(260f, 320f);
-        menuRoot.localScale = Vector3.one * 0.0006f; // ~15,6 cm x 19,2 cm
+        menuRoot.sizeDelta = new Vector2(260f, 620f);
+        menuRoot.localScale = Vector3.one * 0.0006f; // ~15,6 cm x 37,2 cm
 
         // Hintergrundpanel
         AddImage(menuRoot, "Panel", panelColor, Vector2.zero, menuRoot.sizeDelta);
 
         // Titel
         var title = AddText(menuRoot, "Title", "Werkzeuge", 26f);
-        title.rectTransform.anchoredPosition = new Vector2(0f, 130f);
+        title.rectTransform.anchoredPosition = new Vector2(0f, 270f);
         title.rectTransform.sizeDelta = new Vector2(240f, 40f);
 
         // Buttons
-        string[] labels = { "Leveler +", "Leveler -", "Linien löschen", "Reset" };
-        Action[] actions = { SpawnLeveler, DeleteLastLeveler, ClearLines, ResetAll };
-        float startY = 70f;
-        float step = 66f;
+        string[] labels =
+        {
+            "Leveler +",
+            "Leveler -",
+            "Auswahl",
+            "Einzel wählen",
+            "Mehrere wählen",
+            "Farbe",
+            "Orientierung",
+            "Linien löschen",
+            "Reset"
+        };
+        Action[] actions =
+        {
+            SpawnLeveler,
+            DeleteLastLeveler,
+            SelectMultipleObjects,
+            SelectSingleObject,
+            SelectMultipleObjects,
+            ChangeSelectedObjectColor,
+            AdjustSelectedObjectOrientation,
+            ClearLines,
+            ResetAll
+        };
+        float startY = 220f;
+        float step = 58f;
         for (int i = 0; i < labels.Length; i++)
             CreateButton(labels[i], new Vector2(0f, startY - i * step), actions[i]);
 

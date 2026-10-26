@@ -213,20 +213,49 @@ public class MeasurinTapeFeature : Singleton<MeasurinTapeFeature>
     /// <summary>Alle aktuell gezeichneten Messlinien (nur lesen).</summary>
     public IReadOnlyList<MeasuringTape> Lines => savedTapeLines;
 
+    private void UpdateLastLineReferences()
+    {
+        var lastTape = savedTapeLines.LastOrDefault();
+        if (lastTape == null)
+        {
+            ResetLastLineState();
+            return;
+        }
+
+        lastMeasurementInfo = lastTape.TapeInfo;
+        lastTapeLineRenderer = lastTape.TapeLine != null
+            ? lastTape.TapeLine.GetComponent<LineRenderer>()
+            : null;
+    }
+
+    private void ResetLastLineState()
+    {
+        lastTapeLineRenderer = null;
+        lastMeasurementInfo = null;
+        currentController = null;
+    }
+
     /// <summary>Entfernt EINE einzelne Messlinie samt Anzeige.</summary>
     public void DeleteLine(MeasuringTape tape)
     {
         if (tape == null) return;
+
+        bool wasLastTape = ReferenceEquals(savedTapeLines.LastOrDefault(), tape);
+        bool wasLastInfo = ReferenceEquals(lastMeasurementInfo, tape.TapeInfo);
+        bool wasLastRenderer = ReferenceEquals(lastTapeLineRenderer, tape.TapeLine != null ? tape.TapeLine.GetComponent<LineRenderer>() : null);
+
         if (tape.TapeInfo != null) Destroy(tape.TapeInfo.gameObject);
         if (tape.TapeLine != null) Destroy(tape.TapeLine);
         savedTapeLines.Remove(tape);
 
         if (savedTapeLines.Count == 0)
         {
-            lastTapeLineRenderer = null;
-            lastMeasurementInfo = null;
-            currentController = null;
+            ResetLastLineState();
+            return;
         }
+
+        if (wasLastTape || wasLastInfo || wasLastRenderer)
+            UpdateLastLineReferences();
     }
 
     /// <summary>Anzahl der aktuell gezeichneten Messlinien.</summary>
@@ -242,8 +271,6 @@ public class MeasurinTapeFeature : Singleton<MeasurinTapeFeature>
         }
 
         savedTapeLines.Clear();
-        lastTapeLineRenderer = null;
-        lastMeasurementInfo = null;
-        currentController = null;
+        ResetLastLineState();
     }
 }
