@@ -29,7 +29,11 @@ public class MeasurinTapeFeature : Singleton<MeasurinTapeFeature>
     private LineRenderer lastTapeLineRenderer;
     private OVRInput.Controller? currentController;
 
-    private void Awake() => ResolveTapeAreas();
+    private void Awake()
+    {
+        ResolveTapeAreas();
+        OvenFeature.CreateInScene();
+    }
 
     // Sorgt dafür, dass die Linien am echten Controller starten, auch wenn die
     // TapeArea-Referenzen im Inspector fehlerhaft sind (leer oder beide identisch).
