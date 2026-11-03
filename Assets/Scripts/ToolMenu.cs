@@ -234,6 +234,12 @@ public class ToolMenu : MonoBehaviour
         if (tape != null) tape.ClearAllLines();
     }
 
+    private void DeleteSingleTapeLine()
+    {
+        var tape = FindAnyObjectByType<MeasurinTapeFeature>();
+        if (tape != null) tape.DeleteLastLine();
+    }
+
     private void ResetAll()
     {
         foreach (var l in spawnedLevelers)
@@ -255,22 +261,22 @@ public class ToolMenu : MonoBehaviour
         canvas.renderMode = RenderMode.WorldSpace;
 
         menuRoot = canvasGo.GetComponent<RectTransform>();
-        menuRoot.sizeDelta = new Vector2(260f, 320f);
-        menuRoot.localScale = Vector3.one * 0.0006f; // ~15,6 cm x 19,2 cm
+        menuRoot.sizeDelta = new Vector2(260f, 380f);
+        menuRoot.localScale = Vector3.one * 0.0006f; // ~15,6 cm x 22,8 cm
 
         // Hintergrundpanel
         AddImage(menuRoot, "Panel", panelColor, Vector2.zero, menuRoot.sizeDelta);
 
         // Titel
         var title = AddText(menuRoot, "Title", "Werkzeuge", 26f);
-        title.rectTransform.anchoredPosition = new Vector2(0f, 130f);
+        title.rectTransform.anchoredPosition = new Vector2(0f, 160f);
         title.rectTransform.sizeDelta = new Vector2(240f, 40f);
 
         // Buttons
-        string[] labels = { "Leveler +", "Leveler -", "Linien löschen", "Reset" };
-        Action[] actions = { SpawnLeveler, DeleteLastLeveler, ClearLines, ResetAll };
-        float startY = 70f;
-        float step = 66f;
+        string[] labels = { "Leveler +", "Leveler -", "Linie löschen", "Linien löschen", "Reset" };
+        Action[] actions = { SpawnLeveler, DeleteLastLeveler, DeleteSingleTapeLine, ClearLines, ResetAll };
+        float startY = 120f;
+        float step = 60f;
         for (int i = 0; i < labels.Length; i++)
             CreateButton(labels[i], new Vector2(0f, startY - i * step), actions[i]);
 

@@ -213,6 +213,13 @@ public class MeasurinTapeFeature : Singleton<MeasurinTapeFeature>
     /// <summary>Alle aktuell gezeichneten Messlinien (nur lesen).</summary>
     public IReadOnlyList<MeasuringTape> Lines => savedTapeLines;
 
+    /// <summary>Entfernt die zuletzt gezeichnete Messlinie samt Anzeige.</summary>
+    public void DeleteLastLine()
+    {
+        if (savedTapeLines.Count == 0) return;
+        DeleteLine(savedTapeLines.Last());
+    }
+
     /// <summary>Entfernt EINE einzelne Messlinie samt Anzeige.</summary>
     public void DeleteLine(MeasuringTape tape)
     {
@@ -220,13 +227,22 @@ public class MeasurinTapeFeature : Singleton<MeasurinTapeFeature>
         if (tape.TapeInfo != null) Destroy(tape.TapeInfo.gameObject);
         if (tape.TapeLine != null) Destroy(tape.TapeLine);
         savedTapeLines.Remove(tape);
+        UpdateLastReferences();
+    }
 
+    private void UpdateLastReferences()
+    {
         if (savedTapeLines.Count == 0)
         {
             lastTapeLineRenderer = null;
             lastMeasurementInfo = null;
             currentController = null;
+            return;
         }
+
+        var last = savedTapeLines.Last();
+        lastTapeLineRenderer = last.TapeLine != null ? last.TapeLine.GetComponent<LineRenderer>() : null;
+        lastMeasurementInfo = last.TapeInfo;
     }
 
     /// <summary>Anzahl der aktuell gezeichneten Messlinien.</summary>
