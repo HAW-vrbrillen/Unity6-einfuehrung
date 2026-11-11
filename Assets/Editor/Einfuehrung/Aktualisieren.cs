@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -33,6 +34,7 @@ namespace Einfuehrung
             public readonly List<string> Geaendert = new();
             public readonly List<string> Geloescht = new();
             public bool ErsterLauf;
+            public string Stand = ""; // geladener Commit, z. B. „79e47dd – Messlinie einzeln löschbar (27.10. 17:29)“
             public int Gesamt => Neu.Count + Geaendert.Count + Geloescht.Count;
             public IEnumerable<string> Alle => Neu.Concat(Geaendert).Concat(Geloescht);
         }
@@ -65,7 +67,7 @@ namespace Einfuehrung
         }
 
         [MenuItem("Einführung/Aktualisieren", priority = 0)]
-        static void MenueAktualisieren()
+        internal static void MenueAktualisieren()
         {
             var config = LadeConfig();
             if (string.IsNullOrEmpty(config.repository))
@@ -75,10 +77,28 @@ namespace Einfuehrung
             }
 
             var branch = Branch;
-            if (!EditorUtility.DisplayDialog("Projekt aktualisieren",
-                    $"Neuesten Stand von Branch „{branch}“ holen?\n\nRepository: {config.repository}\n\n" +
-                    "Änderungen, die du selbst in Unity gemacht hast, werden dabei überschrieben.",
-                    "Aktualisieren", "Abbrechen"))
+            if (branch == config.standardBranch)
+            {
+                // Die KI schreibt nie in den Standard-Branch – wer ihn lädt, hat meist vergessen,
+                // den eigenen Branch einzustellen, und sieht sonst die Änderungen der KI nicht.
+                switch (EditorUtility.DisplayDialogComplex("Projekt aktualisieren",
+                            $"Eingestellt ist „{branch}“ – der Ausgangszustand ohne Änderungen der KI.\n\n" +
+                            "Die KI speichert deine Änderungen in einem eigenen Branch (z. B. „prof-mueller“). " +
+                            "Den Namen nennt sie dir im Chat.\n\n" +
+                            "Änderungen, die du selbst in Unity gemacht hast, werden beim Laden überschrieben.",
+                            "Meinen Branch wählen …", "Abbrechen", $"„{branch}“ laden"))
+                {
+                    case 0:
+                        EinstellungenFenster.Oeffnen(danachAktualisieren: true);
+                        return;
+                    case 1:
+                        return;
+                }
+            }
+            else if (!EditorUtility.DisplayDialog("Projekt aktualisieren",
+                         $"Neuesten Stand von Branch „{branch}“ holen?\n\nRepository: {config.repository}\n\n" +
+                         "Änderungen, die du selbst in Unity gemacht hast, werden dabei überschrieben.",
+                         "Aktualisieren", "Abbrechen"))
                 return;
 
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
@@ -103,7 +123,9 @@ namespace Einfuehrung
 
             if (ergebnis.Gesamt == 0)
             {
-                EditorUtility.DisplayDialog("Aktualisieren", $"Schon aktuell – Branch „{branch}“ hat keine neuen Änderungen.", "OK");
+                EditorUtility.DisplayDialog("Aktualisieren", $"Schon aktuell – Branch „{branch}“ hat keine neuen Änderungen." +
+                    StandZeile(ergebnis) + "\n\nFehlt eine Änderung der KI? Unter Einführung → Einstellungen prüfen, " +
+                    "ob dort der Branch eingestellt ist, den die KI im Chat genannt hat.", "OK");
                 return;
             }
 
@@ -114,7 +136,8 @@ namespace Einfuehrung
 
             var meldung = $"Branch „{branch}“ übernommen:\n" +
                           $"{ergebnis.Neu.Count} neu, {ergebnis.Geaendert.Count} geändert, {ergebnis.Geloescht.Count} gelöscht\n\n" +
-                          string.Join("\n", ergebnis.Alle.Where(p => !p.EndsWith(".meta")).Take(15));
+                          string.Join("\n", ergebnis.Alle.Where(p => !p.EndsWith(".meta")).Take(15)) +
+                          StandZeile(ergebnis);
             if (ergebnis.ErsterLauf)
                 meldung += "\n\n(Erster Lauf: Dateien, die im Repo gelöscht wurden, werden erst ab dem nächsten Mal entfernt.)";
 
@@ -142,9 +165,16 @@ namespace Einfuehrung
             var zipPfad = Path.Combine(Path.GetTempPath(), $"einfuehrung-{Guid.NewGuid():N}.zip");
             try
             {
-                Herunterladen(repository, branch, token, zipPfad);
+                // Erst den neuesten Commit des Branches abfragen und genau diesen laden: Ein ZIP
+                // über den Branch-Namen kann kurz nach einem Push noch den alten Stand liefern.
+                EditorUtility.DisplayProgressBar("Aktualisieren", $"Frage neuesten Stand von „{branch}“ ab …", 0.1f);
+                var commit = NeuesterCommit(repository, branch, token);
+
+                Herunterladen(repository, branch, commit?.sha, token, zipPfad);
                 EditorUtility.DisplayProgressBar("Aktualisieren", "Dateien übernehmen …", 1f);
                 var ergebnis = Uebernehmen(zipPfad);
+                if (commit != null)
+                    ergebnis.Stand = commit.Beschreibung;
 
                 AssetDatabase.Refresh();
                 if (ergebnis.Alle.Any(p => p.StartsWith("Packages/")))
@@ -158,12 +188,83 @@ namespace Einfuehrung
             }
         }
 
-        static void Herunterladen(string repository, string branch, string token, string zielPfad)
+        static string StandZeile(Ergebnis ergebnis) =>
+            string.IsNullOrEmpty(ergebnis.Stand) ? "" : $"\n\nStand: {ergebnis.Stand}";
+
+        // Antworten der GitHub-API; die Felder füllt JsonUtility (daher keine Warnung „nie zugewiesen“).
+#pragma warning disable CS0649
+        [Serializable]
+        class Commit
+        {
+            public string sha;
+            public CommitDaten commit;
+
+            public string Beschreibung
+            {
+                get
+                {
+                    var titel = (commit?.message ?? "").Split('\n')[0].Trim();
+                    var zeit = DateTimeOffset.TryParse(commit?.committer?.date, CultureInfo.InvariantCulture,
+                        DateTimeStyles.AssumeUniversal, out var d) ? $" ({d.ToLocalTime():dd.MM. HH:mm})" : "";
+                    return $"{sha.Substring(0, 7)} – {titel}{zeit}";
+                }
+            }
+        }
+
+        [Serializable] class CommitDaten { public string message; public CommitPerson committer; }
+        [Serializable] class CommitPerson { public string date; }
+        [Serializable] class BranchListe { public BranchEintrag[] eintraege; }
+        [Serializable] class BranchEintrag { public string name; }
+#pragma warning restore CS0649
+
+        /// <summary>Neuester Commit des Branches, oder null, wenn die GitHub-API nicht erreichbar ist.</summary>
+        static Commit NeuesterCommit(string repository, string branch, string token)
+        {
+            var json = ApiLesen($"repos/{repository}/commits/{branch}", token);
+            if (json == null)
+                return null;
+            var commit = JsonUtility.FromJson<Commit>(json);
+            return commit != null && commit.sha?.Length == 40 ? commit : null;
+        }
+
+        /// <summary>Alle Branches des Repositorys für die Auswahl in den Einstellungen (leer bei Fehler).</summary>
+        public static string[] BranchesAbfragen()
+        {
+            var config = LadeConfig();
+            if (string.IsNullOrEmpty(config.repository))
+                return Array.Empty<string>();
+            var json = ApiLesen($"repos/{config.repository}/branches?per_page=100", Token);
+            if (json == null)
+                return Array.Empty<string>();
+            // JsonUtility kann keine Listen auf oberster Ebene lesen – deshalb einpacken.
+            var liste = JsonUtility.FromJson<BranchListe>("{\"eintraege\":" + json + "}");
+            return liste?.eintraege?.Select(b => b.name).Where(n => !string.IsNullOrEmpty(n)).ToArray()
+                   ?? Array.Empty<string>();
+        }
+
+        /// <summary>Kleine Anfrage an die GitHub-API; null bei jedem Fehler (z. B. offline oder Limit erreicht).</summary>
+        static string ApiLesen(string pfad, string token)
+        {
+            using var anfrage = UnityWebRequest.Get("https://api.github.com/" + pfad);
+            anfrage.timeout = 10;
+            anfrage.SetRequestHeader("User-Agent", "Unity-Einfuehrung");
+            anfrage.SetRequestHeader("Accept", "application/vnd.github+json");
+            if (!string.IsNullOrEmpty(token))
+                anfrage.SetRequestHeader("Authorization", "Bearer " + token);
+
+            var vorgang = anfrage.SendWebRequest();
+            while (!vorgang.isDone)
+                Thread.Sleep(20);
+            return anfrage.result == UnityWebRequest.Result.Success ? anfrage.downloadHandler.text : null;
+        }
+
+        static void Herunterladen(string repository, string branch, string sha, string token, string zielPfad)
         {
             // Öffentliche Repos direkt über codeload, private über die API mit Zugangstoken.
+            // Mit bekanntem Commit genau diesen laden, sonst (API nicht erreichbar) den Branch.
             var url = string.IsNullOrEmpty(token)
-                ? $"https://codeload.github.com/{repository}/zip/refs/heads/{branch}"
-                : $"https://api.github.com/repos/{repository}/zipball/{branch}";
+                ? $"https://codeload.github.com/{repository}/zip/{(sha ?? "refs/heads/" + branch)}"
+                : $"https://api.github.com/repos/{repository}/zipball/{sha ?? branch}";
 
             using var anfrage = UnityWebRequest.Get(url);
             anfrage.downloadHandler = new DownloadHandlerFile(zielPfad) { removeFileOnAbort = true };
@@ -289,17 +390,21 @@ namespace Einfuehrung
     {
         string branch;
         string token;
+        string[] branches = Array.Empty<string>();
+        bool danachAktualisieren;
 
-        public static void Oeffnen()
+        public static void Oeffnen(bool danachAktualisieren = false)
         {
             var fenster = GetWindow<EinstellungenFenster>(true, "Einführung – Einstellungen");
-            fenster.minSize = new Vector2(460, 230);
+            fenster.minSize = new Vector2(460, 270);
+            fenster.danachAktualisieren = danachAktualisieren;
         }
 
         void OnEnable()
         {
             branch = Aktualisieren.Branch;
             token = Aktualisieren.Token;
+            branches = Aktualisieren.BranchesAbfragen();
         }
 
         void OnGUI()
@@ -310,18 +415,26 @@ namespace Einfuehrung
             EditorGUILayout.Space();
 
             branch = EditorGUILayout.TextField("Mein Branch", branch);
-            EditorGUILayout.HelpBox("Der Branch, auf dem die KI deine Änderungen speichert, z. B. „prof-mueller“. " +
-                                    $"Standard: „{config.standardBranch}“.", MessageType.None);
+            if (branches.Length > 0)
+            {
+                var auswahl = EditorGUILayout.Popup("Auf GitHub vorhanden", Array.IndexOf(branches, branch), branches);
+                if (auswahl >= 0)
+                    branch = branches[auswahl];
+            }
+            EditorGUILayout.HelpBox("Der Branch, auf dem die KI deine Änderungen speichert, z. B. „prof-mueller“ – " +
+                                    $"die KI nennt ihn im Chat. „{config.standardBranch}“ ist der Ausgangszustand.", MessageType.None);
 
             token = EditorGUILayout.PasswordField("Zugangstoken (optional)", token);
             EditorGUILayout.HelpBox("Nur bei einem privaten Repository nötig: ein GitHub-Token mit Lesezugriff " +
                                     "(Fine-grained, nur dieses Repository, Berechtigung „Contents: Read“).", MessageType.None);
 
             EditorGUILayout.Space();
-            if (GUILayout.Button("Speichern"))
+            if (GUILayout.Button(danachAktualisieren ? "Speichern und aktualisieren" : "Speichern"))
             {
                 Aktualisieren.Branch = string.IsNullOrWhiteSpace(branch) ? config.standardBranch : branch;
                 Aktualisieren.Token = token ?? "";
+                if (danachAktualisieren && Aktualisieren.Branch != config.standardBranch)
+                    EditorApplication.delayCall += Aktualisieren.MenueAktualisieren;
                 Close();
             }
         }
