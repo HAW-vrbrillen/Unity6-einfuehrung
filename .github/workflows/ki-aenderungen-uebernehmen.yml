@@ -1,0 +1,57 @@
+# Übernimmt Pull Requests der KI automatisch in den Branch der jeweiligen Person
+# (z. B. codex/… → prof-mueller), damit „Einführung → Aktualisieren“ sie sofort findet.
+# Pull Requests in main werden nie automatisch übernommen – main bleibt der Ausgangszustand.
+name: KI-Änderungen übernehmen
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+
+jobs:
+  uebernehmen:
+    if: >-
+      github.event.pull_request.base.ref != github.event.repository.default_branch &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull Request in den Branch übernehmen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          ENTWURF: ${{ github.event.pull_request.draft }}
+          ZIEL: ${{ github.event.pull_request.base.ref }}
+        run: |
+          if [ "$ENTWURF" = "true" ]; then gh pr ready "$PR" --repo "$REPO"; fi
+          # Direkt nach dem Öffnen prüft GitHub noch, ob der Merge geht – deshalb ein paar Versuche.
+          for versuch in 1 2 3 4 5 6; do
+            if gh pr merge "$PR" --repo "$REPO" --squash; then
+              gh pr comment "$PR" --repo "$REPO" --body "Automatisch in \`$ZIEL\` übernommen. In Unity: **Einführung → Aktualisieren** (Branch \`$ZIEL\`), danach **Build And Run**."
+              exit 0
+            fi
+            sleep 10
+          done
+          gh pr comment "$PR" --repo "$REPO" --body "Konnte nicht automatisch in \`$ZIEL\` übernommen werden (vermutlich ein Konflikt mit einer anderen Änderung). Bitte die KI bitten, den Konflikt zu lösen."
+          exit 1
+
+  hinweis-main:
+    if: >-
+      github.event.action == 'opened' &&
+      github.event.pull_request.base.ref == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hinweis, welchen Branch man in Unity einstellen muss
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          QUELLE: ${{ github.event.pull_request.head.ref }}
+        run: |
+          gh pr comment "$PR" --repo "$REPO" --body "Dieser Vorschlag zielt auf \`main\` (Ausgangszustand) und wird **nicht** automatisch übernommen. Die Änderungen liegen im Branch \`$QUELLE\`: In Unity unter **Einführung → Einstellungen …** den Branch \`$QUELLE\` wählen, dann **Einführung → Aktualisieren**."

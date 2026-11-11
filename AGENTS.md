@@ -35,6 +35,8 @@ Mess-App für Mixed Reality auf der Meta Quest 3.
   (Kleinbuchstaben, ohne Umlaute und Leerzeichen, z. B. `prof-mueller`). Existiert er schon
   auf GitHub, wechsle auf ihn (`git fetch` und `git switch`).
 - Committe und **pushe direkt auf diesen Branch**. Einen Pull Request nur, wenn ausdrücklich gewünscht.
+- Kannst du nur Pull Requests erstellen (z. B. Codex im Browser), wähle als Ziel (base) den Branch
+  `prof-<name>`, **nicht** `main`. Pull Requests in andere Branches als `main` übernimmt GitHub automatisch.
 
 ## Regeln für Unity
 
