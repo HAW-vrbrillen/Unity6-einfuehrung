@@ -4,7 +4,8 @@ using UnityEngine;
 /// Erlaubt es, bereits gesetzte Messlinien mit dem Controller zu bearbeiten:
 ///   • Auf eine Linie zeigen  → sie wird hervorgehoben.
 ///   • Grip halten            → die Linie folgt dem Controller (verschieben).
-///   • A-Taste drücken        → nur DIESE eine Linie löschen.
+///   • A-Taste halten         → einen Kreis zeichnen oder dessen Radius ändern.
+///   • A-Taste auf einer Linie → beim Loslassen diese Linie löschen.
 ///
 /// Nutzt einen eigenen Strahl (kein Interaction SDK nötig). Einfach an ein
 /// beliebiges GameObject in der Szene hängen – Controller wird automatisch gesucht.
@@ -21,11 +22,27 @@ public class TapeLineEditor : MonoBehaviour
     [Tooltip("Wie nah der Strahl an einer Linie sein muss, um sie zu treffen (Meter).")]
     [SerializeField] private float maxTargetDistance = 0.08f;
     [SerializeField] private Color highlightColor = Color.cyan;
+    [Header("Kreise")]
+    [SerializeField] private float initialCircleRadius = 0.1f;
+    [SerializeField] private float minCircleRadius = 0.02f;
+    [SerializeField] private float maxCircleRadius = 2f;
+    [SerializeField] private float radiusChangePerMeter = 1f;
+    [SerializeField] private float circleLineWidth = 0.005f;
+    [SerializeField] private int circleSegments = 64;
+    [SerializeField] private Color circleColor = Color.green;
 
     private MeasurinTapeFeature tape;
     private MeasuringTape targeted;
+    private MeasuringTape pendingDelete;
     private MeasuringTape grabbed;
     private Vector3 lastPointerPos;
+    private Vector3 circleStartPosition;
+    private float circleStartY;
+    private float circleStartRadius;
+    private float currentCircleRadius;
+    private bool drawingCircle;
+    private int circleCount;
+    private LineRenderer currentCircle;
 
     private LineRenderer highlightedRenderer;
     private Color highlightedOriginal;
@@ -55,17 +72,123 @@ public class TapeLineEditor : MonoBehaviour
         if (ToolMenu.IsHoveringMenu && controller == ToolMenu.ActivePointerController)
         {
             ClearTarget();
+            if (OVRInput.GetUp(deleteButton, controller))
+            {
+                drawingCircle = false;
+                currentCircle = null;
+                pendingDelete = null;
+            }
             return;
         }
 
         UpdateTargeting();
+        HandleCircleInput();
 
         if (targeted != null)
         {
             if (OVRInput.GetDown(grabButton, controller))
                 StartGrab();
-            else if (OVRInput.GetDown(deleteButton, controller))
-                DeleteTargeted();
+        }
+    }
+
+    private void HandleCircleInput()
+    {
+        if (OVRInput.GetDown(deleteButton, controller))
+        {
+            if (targeted != null)
+            {
+                pendingDelete = targeted;
+                circleStartPosition = pointerTransform.position;
+                circleStartY = pointerTransform.position.y;
+                circleStartRadius = GetInitialCircleRadius();
+            }
+            else
+            {
+                StartCircle(pointerTransform.position);
+            }
+        }
+
+        if (OVRInput.Get(deleteButton, controller))
+        {
+            float verticalMovement = circleStartY - pointerTransform.position.y;
+            if (pendingDelete != null && Mathf.Abs(verticalMovement) >= 0.02f)
+            {
+                pendingDelete = null;
+                ClearTarget();
+                StartCircle(circleStartPosition);
+            }
+
+            if (drawingCircle)
+            {
+                currentCircleRadius = Mathf.Clamp(
+                    circleStartRadius + verticalMovement * radiusChangePerMeter,
+                    minCircleRadius,
+                    maxCircleRadius);
+                UpdateCirclePoints();
+            }
+        }
+
+        if (OVRInput.GetUp(deleteButton, controller))
+        {
+            if (drawingCircle)
+            {
+                drawingCircle = false;
+                currentCircle = null;
+            }
+            else if (pendingDelete != null)
+            {
+                var target = pendingDelete;
+                pendingDelete = null;
+                if (target == targeted) DeleteTargeted();
+                else tape.DeleteLine(target);
+            }
+        }
+    }
+
+    private void StartCircle(Vector3 center)
+    {
+        circleStartPosition = center;
+        circleStartY = center.y;
+        circleStartRadius = GetInitialCircleRadius();
+        currentCircleRadius = circleStartRadius;
+        currentCircle = new GameObject($"Circle_{circleCount++}", typeof(LineRenderer))
+            .GetComponent<LineRenderer>();
+        currentCircle.useWorldSpace = true;
+        currentCircle.loop = true;
+        currentCircle.positionCount = Mathf.Max(3, circleSegments);
+        currentCircle.startWidth = circleLineWidth;
+        currentCircle.endWidth = circleLineWidth;
+        currentCircle.startColor = circleColor;
+        currentCircle.endColor = circleColor;
+
+        var shader = Shader.Find("Sprites/Default");
+        if (shader != null)
+        {
+            currentCircle.material = new Material(shader);
+            currentCircle.material.color = circleColor;
+        }
+
+        drawingCircle = true;
+        UpdateCirclePoints();
+    }
+
+    private float GetInitialCircleRadius()
+    {
+        float minRadius = Mathf.Max(0.001f, minCircleRadius);
+        float maxRadius = Mathf.Max(minRadius, maxCircleRadius);
+        return Mathf.Clamp(initialCircleRadius, minRadius, maxRadius);
+    }
+
+    private void UpdateCirclePoints()
+    {
+        if (currentCircle == null) return;
+
+        int segments = currentCircle.positionCount;
+        for (int i = 0; i < segments; i++)
+        {
+            float angle = i * Mathf.PI * 2f / segments;
+            Vector3 offset = new(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            currentCircle.SetPosition(i, circleStartPosition + offset * currentCircleRadius);
         }
     }
 
