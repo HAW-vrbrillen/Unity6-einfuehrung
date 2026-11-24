@@ -232,6 +232,33 @@ public class MeasurinTapeFeature : Singleton<MeasurinTapeFeature>
     /// <summary>Anzahl der aktuell gezeichneten Messlinien.</summary>
     public int LineCount => savedTapeLines.Count;
 
+    /// <summary>
+    /// Aktualisiert Messwert und Anzeige einer bestehenden Linie nach einer Änderung
+    /// oder Drehung. Wird vom Linien-Editor verwendet.
+    /// </summary>
+    public void RefreshTape(MeasuringTape tape)
+    {
+        if (tape == null || tape.TapeLine == null) return;
+
+        var lr = tape.TapeLine.GetComponent<LineRenderer>();
+        if (lr == null) return;
+
+        Vector3 p0 = lr.GetPosition(0);
+        Vector3 p1 = lr.GetPosition(1);
+
+        if (tape.TapeInfo != null)
+        {
+            float distance = Vector3.Distance(p0, p1);
+            string label = distance >= 1.0f
+                ? $"{distance:F2} m"
+                : $"{MeasuringTape.MetersToCentimeters(distance):F1} cm";
+            tape.TapeInfo.text = string.Format(measurementInfoFormat, label);
+
+            tape.TapeInfo.transform.position =
+                (p0 + p1) / 2.0f + PerpendicularOffset(p0, p1) * measurementInfoLineOffset;
+        }
+    }
+
     /// <summary>Entfernt alle gezeichneten Messlinien und deren Anzeigen.</summary>
     public void ClearAllLines()
     {

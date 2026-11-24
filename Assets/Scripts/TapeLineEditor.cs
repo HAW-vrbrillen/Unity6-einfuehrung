@@ -25,6 +25,7 @@ public class TapeLineEditor : MonoBehaviour
     private MeasurinTapeFeature tape;
     private MeasuringTape targeted;
     private MeasuringTape grabbed;
+    private int grabbedEndpoint = -1;
     private Vector3 lastPointerPos;
 
     private LineRenderer highlightedRenderer;
@@ -125,6 +126,7 @@ public class TapeLineEditor : MonoBehaviour
     private void StartGrab()
     {
         grabbed = targeted;
+        grabbedEndpoint = GetNearestEndpoint(grabbed);
         lastPointerPos = pointerTransform.position;
     }
 
@@ -148,11 +150,34 @@ public class TapeLineEditor : MonoBehaviour
         Vector3 delta = now - lastPointerPos;
         lastPointerPos = now;
 
-        // Beide Endpunkte und die Anzeige um dieselbe Strecke verschieben.
-        lr.SetPosition(0, lr.GetPosition(0) + delta);
-        lr.SetPosition(1, lr.GetPosition(1) + delta);
-        if (grabbed.TapeInfo != null)
-            grabbed.TapeInfo.transform.position += delta;
+        if (grabbedEndpoint >= 0)
+        {
+            // Nur einen Endpunkt bewegen: Die Linie dreht sich dabei und bekommt
+            // automatisch eine neue Länge.
+            lr.SetPosition(grabbedEndpoint, lr.GetPosition(grabbedEndpoint) + delta);
+        }
+        else
+        {
+            // In der Mitte greifend bewegt sich die ganze Linie gemeinsam.
+            lr.SetPosition(0, lr.GetPosition(0) + delta);
+            lr.SetPosition(1, lr.GetPosition(1) + delta);
+        }
+
+        tape.RefreshTape(grabbed);
+    }
+
+    private int GetNearestEndpoint(MeasuringTape measuringTape)
+    {
+        var lr = GetRenderer(measuringTape);
+        if (lr == null) return -1;
+
+        var ray = new Ray(pointerTransform.position, pointerTransform.forward);
+        float distance0 = PointToRayDistance(ray, lr.GetPosition(0));
+        float distance1 = PointToRayDistance(ray, lr.GetPosition(1));
+
+        if (distance0 < maxTargetDistance && distance0 <= distance1) return 0;
+        if (distance1 < maxTargetDistance) return 1;
+        return -1;
     }
 
     // ------------------------------------------------------------- Löschen -----
